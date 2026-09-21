@@ -18,7 +18,7 @@ Download `panasms-updates.asc` and verify its fingerprint through a trusted sour
 
 For manual APT configuration, install this key in `/etc/apt/keyrings/panasms-updates.asc`, then use a deb822 source with `Types: deb`, `URIs: https://panasms.github.io/updates/`, `Suites: stable` (or `testing`), `Components: main`, and `Signed-By: /etc/apt/keyrings/panasms-updates.asc`.
 
-The panel's update service manages its own source and transaction settings. Selecting a channel does not itself install an update or authorize a downgrade. System dependencies still come from the distribution repositories.
+The panel verifies the signed channel manifest and installs downloaded local packages through APT; it does not enable a global APT source automatically. Selecting a channel does not itself install an update or authorize a downgrade. System dependencies still come from the distribution repositories.
 
 ## Security and operations
 

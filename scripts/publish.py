@@ -74,6 +74,8 @@ def import_run(repo, run, state):
     first = manifests['arm64']
     for key in ('sources','version','createdAt','channel'):
         if first[key] != manifests['amd64'][key]:raise ValueError('Architecture source mismatch')
+    policy = first.get('updatePolicy', {'rollbackCompatible':False,'requiresReboot':False})
+    if policy != manifests['amd64'].get('updatePolicy', {'rollbackCompatible':False,'requiresReboot':False}):raise ValueError('Update policy mismatch')
     channel, version = first['channel'], first['version']
     entries = state.get(channel,[])
     if entries and not newer(version,entries[0]['version']):return
@@ -98,7 +100,7 @@ def import_run(repo, run, state):
         if not any(p['name']=='panasms-prototype' for p in packages[arch]):raise ValueError('Missing core package')
         manifest=folder/f'{arch}-build-manifest.json'
         manifest.write_text(json.dumps(manifests[arch],indent=2)+'\n');uploads.append(str(manifest))
-    entry={'version':version,'channel':channel,'createdAt':first['createdAt'],'run':first['run'],'sources':first['sources'],'tag':tag,'packages':packages,'rollbackCompatible':True,'requiresReboot':False}
+    entry={'version':version,'channel':channel,'createdAt':first['createdAt'],'run':first['run'],'sources':first['sources'],'tag':tag,'packages':packages,'rollbackCompatible':policy['rollbackCompatible'],'requiresReboot':policy['requiresReboot']}
     probe=subprocess.run(['gh','release','view',tag,'--repo',REPO],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     if probe.returncode:
         command('gh','release','create',tag,*uploads,'--repo',REPO,'--title',f'PaNasMs {version}','--notes',f"Verified ARM64 and AMD64 packages. Source build: {first['run']}",*(['--prerelease'] if channel=='testing' else []))
