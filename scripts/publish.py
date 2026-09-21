@@ -90,8 +90,11 @@ def import_run(repo, run, state):
             package_version=command('dpkg-deb','-f',str(path),'Version').decode().strip()
             package_arch=command('dpkg-deb','-f',str(path),'Architecture').decode().strip()
             if name not in ALLOWED or package_version!=version or package_arch not in (arch,'all'):raise ValueError('Package identity mismatch')
-            packages[arch].append({**item,'name':name,'version':version,'size':path.stat().st_size,'url':f'https://github.com/{REPO}/releases/download/{tag}/{file}'})
-            uploads.append(str(path))
+            published_file=file.replace('~','.')
+            published=folder/published_file
+            if published != path:shutil.copy2(path,published)
+            packages[arch].append({**item,'file':published_file,'name':name,'version':version,'size':path.stat().st_size,'url':f'https://github.com/{REPO}/releases/download/{tag}/{published_file}'})
+            uploads.append(str(published))
         if not any(p['name']=='panasms-prototype' for p in packages[arch]):raise ValueError('Missing core package')
         manifest=folder/f'{arch}-build-manifest.json'
         manifest.write_text(json.dumps(manifests[arch],indent=2)+'\n');uploads.append(str(manifest))
