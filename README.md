@@ -8,6 +8,9 @@ Signed APT channels for Debian 13 and Raspberry Pi OS based on Debian 13, ARM64 
 
 The importer runs every 15 minutes (GitHub may delay scheduled workflows). It uses read access to public build artifacts, avoiding cross-repository write credentials. Publication is serialized and older versions cannot replace newer versions. Releases retain immutable packages; Pages carries the two latest versions per channel. Release signatures and channel manifests expire after seven days and are refreshed by the publisher.
 
+[Project website](https://panasms.github.io/) ·
+[Installation and recovery lifecycle](https://github.com/PaNasMs/panasms/blob/main/documentation/system-updates.md)
+
 ## Repository
 
 Base URL: https://panasms.github.io/updates/
