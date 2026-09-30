@@ -1,6 +1,77 @@
 {
   "testing": [
     {
+      "version": "0.2.8~dev.20260930131531.36720339419.1",
+      "channel": "testing",
+      "createdAt": "2026-09-30T13:15:31Z",
+      "run": "https://github.com/PaNasMs/panasms/actions/runs/36720339419",
+      "sources": {
+        "backend": {
+          "repository": "PaNasMs/backend",
+          "commit": "01f38d5a19c47db41d99fbdf65132c38a4530449",
+          "requestedRef": "main",
+          "committedAt": "2026-09-30T13:15:15Z"
+        },
+        "frontend": {
+          "repository": "PaNasMs/frontend",
+          "commit": "8884b6db31f9fff05a4ce1a41e6b699e6b00e999",
+          "requestedRef": "main",
+          "committedAt": "2026-09-30T13:15:17Z"
+        },
+        "files": {
+          "repository": "PaNasMs/module-files",
+          "commit": "9a197683da5bfb51030185921276345bcb93f701",
+          "requestedRef": "main",
+          "committedAt": "2026-09-30T11:33:01Z",
+          "role": "test-dependency"
+        },
+        "terminal": {
+          "repository": "PaNasMs/module-terminal",
+          "commit": "feff8d37075e5539971ae3c2ceaffd54089a9acc",
+          "requestedRef": "main",
+          "committedAt": "2026-09-30T11:30:22Z",
+          "role": "test-dependency"
+        },
+        "build": {
+          "repository": "PaNasMs/panasms",
+          "commit": "a8de1804ae0cdd17624673832324d572523edb65"
+        }
+      },
+      "tag": "testing-36720339419-1",
+      "packages": {
+        "arm64": [
+          {
+            "file": "panasms-cooling_0.2.8.dev.20260930131531.36720339419.1_all.deb",
+            "sha256": "a1eaf262f75cecf2abd4fb4c1e7170d0e2ebdf2e6efdb77373f348cd88ef62f6",
+            "name": "panasms-cooling",
+            "version": "0.2.8~dev.20260930131531.36720339419.1",
+            "size": 7524,
+            "url": "https://github.com/PaNasMs/updates/releases/download/testing-36720339419-1/panasms-cooling_0.2.8.dev.20260930131531.36720339419.1_all.deb"
+          },
+          {
+            "file": "panasms-prototype_0.2.8.dev.20260930131531.36720339419.1_arm64.deb",
+            "sha256": "96cc9162caad172ba655764a4b030dad6a1b93357670e4dff0d54decca51031b",
+            "name": "panasms-prototype",
+            "version": "0.2.8~dev.20260930131531.36720339419.1",
+            "size": 26496204,
+            "url": "https://github.com/PaNasMs/updates/releases/download/testing-36720339419-1/panasms-prototype_0.2.8.dev.20260930131531.36720339419.1_arm64.deb"
+          }
+        ],
+        "amd64": [
+          {
+            "file": "panasms-prototype_0.2.8.dev.20260930131531.36720339419.1_amd64.deb",
+            "sha256": "2205896dd5cb5ba8be9cbbf402bbb86e366af152d15a1b335c0c0b4d40097fe2",
+            "name": "panasms-prototype",
+            "version": "0.2.8~dev.20260930131531.36720339419.1",
+            "size": 29080916,
+            "url": "https://github.com/PaNasMs/updates/releases/download/testing-36720339419-1/panasms-prototype_0.2.8.dev.20260930131531.36720339419.1_amd64.deb"
+          }
+        ]
+      },
+      "rollbackCompatible": true,
+      "requiresReboot": false
+    },
+    {
       "version": "0.2.7~dev.20260929114823.36564022630.1",
       "channel": "testing",
       "createdAt": "2026-09-29T11:48:23Z",
@@ -65,77 +136,6 @@
             "version": "0.2.7~dev.20260929114823.36564022630.1",
             "size": 29047440,
             "url": "https://github.com/PaNasMs/updates/releases/download/testing-36564022630-1/panasms-prototype_0.2.7.dev.20260929114823.36564022630.1_amd64.deb"
-          }
-        ]
-      },
-      "rollbackCompatible": true,
-      "requiresReboot": false
-    },
-    {
-      "version": "0.2.7~dev.20260924122718.35999154425.1",
-      "channel": "testing",
-      "createdAt": "2026-09-24T12:27:18Z",
-      "run": "https://github.com/PaNasMs/panasms/actions/runs/35999154425",
-      "sources": {
-        "backend": {
-          "repository": "PaNasMs/backend",
-          "commit": "17c2e409bc0b4bf05182e8c120071f23891f47fb",
-          "requestedRef": "main",
-          "committedAt": "2026-09-23T16:43:47Z"
-        },
-        "frontend": {
-          "repository": "PaNasMs/frontend",
-          "commit": "4856f86c7d7067952c47c63ef2ad59e77e56f098",
-          "requestedRef": "main",
-          "committedAt": "2026-09-24T12:21:26Z"
-        },
-        "files": {
-          "repository": "PaNasMs/module-files",
-          "commit": "d9857d7735d0b77f1f79ac52fe6ef92a6a0fe122",
-          "requestedRef": "main",
-          "committedAt": "2026-09-23T13:42:27Z",
-          "role": "test-dependency"
-        },
-        "terminal": {
-          "repository": "PaNasMs/module-terminal",
-          "commit": "898633cb1da59b77c291913558fcca8194f09072",
-          "requestedRef": "main",
-          "committedAt": "2026-09-23T13:42:27Z",
-          "role": "test-dependency"
-        },
-        "build": {
-          "repository": "PaNasMs/panasms",
-          "commit": "33e8624c4cd53c84a6c03a13e689987923094848"
-        }
-      },
-      "tag": "testing-35999154425-1",
-      "packages": {
-        "arm64": [
-          {
-            "file": "panasms-cooling_0.2.7.dev.20260924122718.35999154425.1_all.deb",
-            "sha256": "12f9f71b1de6f9edfc2bc7e1b96ad70a7065d4b87a1056e1c3af5340ac07c54a",
-            "name": "panasms-cooling",
-            "version": "0.2.7~dev.20260924122718.35999154425.1",
-            "size": 5856,
-            "url": "https://github.com/PaNasMs/updates/releases/download/testing-35999154425-1/panasms-cooling_0.2.7.dev.20260924122718.35999154425.1_all.deb"
-          },
-          {
-            "file": "panasms-prototype_0.2.7.dev.20260924122718.35999154425.1_arm64.deb",
-            "sha256": "2bf53089646ccdbb435e7257274658a96d003e6296bbf81f0485dc5f8d36cc9b",
-            "name": "panasms-prototype",
-            "version": "0.2.7~dev.20260924122718.35999154425.1",
-            "size": 26314384,
-            "url": "https://github.com/PaNasMs/updates/releases/download/testing-35999154425-1/panasms-prototype_0.2.7.dev.20260924122718.35999154425.1_arm64.deb"
-          }
-        ],
-        "amd64": [
-          {
-            "file": "panasms-prototype_0.2.7.dev.20260924122718.35999154425.1_amd64.deb",
-            "sha256": "c2a0d94607d279261da948581e349000f5060c3bc14585bbced123a7107daca8",
-            "name": "panasms-prototype",
-            "version": "0.2.7~dev.20260924122718.35999154425.1",
-            "size": 28867112,
-            "url": "https://github.com/PaNasMs/updates/releases/download/testing-35999154425-1/panasms-prototype_0.2.7.dev.20260924122718.35999154425.1_amd64.deb"
           }
         ]
       },
