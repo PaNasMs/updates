@@ -1,6 +1,6 @@
 # PaNasMs system updates
 
-Signed APT channels for Debian 13 and Raspberry Pi OS based on Debian 13, ARM64 and AMD64.
+Signed APT channels for Debian 13 / Raspberry Pi OS 13 (ARM64 and AMD64), and Ubuntu 24.04 LTS (AMD64, PaNasMs 0.2.13 or newer).
 
 - `testing`: successful pushes to `main` in PaNasMs/panasms, backend or frontend.
 - `stable`: successful `vMAJOR.MINOR.PATCH` tags in PaNasMs/panasms, with component commits pinned in `release-lock.json`.
@@ -13,7 +13,7 @@ The importer runs every 15 minutes (GitHub may delay scheduled workflows). It us
 
 ## One-command installation
 
-On a fresh Debian 13 / Raspberry Pi OS 64-bit system:
+On a fresh supported system with a password-enabled sudo user:
 
 ```sh
 curl -fsSL https://panasms.github.io/updates/install.sh | sudo bash
