@@ -122,7 +122,8 @@ def main():
         context=ssl.create_default_context(cafile='/etc/panasms/tls.crt');context.check_hostname=False
         handlers.append(urllib.request.HTTPSHandler(context=context))
     with urllib.request.build_opener(*handlers).open(f'{scheme}://127.0.0.1:{args.port}/api/v1/health', timeout=10) as response:
-        require(response.status == 200, 'Panel startup health check failed')
+        health=json.load(response)
+        require(response.status == 200 and health.get('status') == 'ok' and health.get('product') == 'PaNasMs', 'Panel startup health check failed')
     addresses = run('hostname', '-I', capture=True).split()
     address = next((a for a in addresses if ':' not in a), socket.gethostname())
     print(f'\nReady: {scheme}://{address}'+(f':{args.port}' if args.port != (443 if args.https else 80) else '')+'/')
