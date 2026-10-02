@@ -33,3 +33,27 @@ class Installer(unittest.TestCase):
         self.assertEqual(result.returncode,0,result.stderr)
         self.assertIn('--channel',result.stdout)
         self.assertIn('--https',result.stdout)
+
+    def test_supported_os_matrix(self):
+        for distro,version,arch,expected in [('debian','13','amd64',True),('raspbian','13','arm64',True),('ubuntu','24.04','amd64',True),('ubuntu','24.04','arm64',False),('ubuntu','22.04','amd64',False),('other','13','amd64',False),('debian','12','amd64',False)]:
+            with self.subTest(distro=distro,version=version,arch=arch):
+                self.assertEqual(i.supported_os({'ID':distro,'VERSION_ID':version},arch),expected)
+
+    def test_waits_for_http_listener_after_systemd_start(self):
+        import io
+        from unittest.mock import Mock,patch
+        opener=Mock()
+        response=io.BytesIO(b'{"product":"PaNasMs","status":"ok"}');response.status=200
+        opener.open.side_effect=[i.urllib.error.URLError(ConnectionRefusedError()),response]
+        with patch.object(i.time,'sleep') as sleep:
+            i.wait_ready(opener,'http://localhost/api/v1/health')
+        self.assertEqual(opener.open.call_count,2);sleep.assert_called_once_with(1)
+
+    def test_readiness_timeout_and_wrong_product(self):
+        import io
+        from unittest.mock import Mock
+        opener=Mock();opener.open.side_effect=i.urllib.error.URLError('refused')
+        with self.assertRaisesRegex(RuntimeError,'did not become ready'):i.wait_ready(opener,'http://localhost',timeout=0)
+        response=io.BytesIO(b'{"product":"Other","status":"ok"}');response.status=200
+        opener.open.side_effect=None;opener.open.return_value=response
+        with self.assertRaisesRegex(RuntimeError,'health check failed'):i.wait_ready(opener,'http://localhost')

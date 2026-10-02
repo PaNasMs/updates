@@ -12,6 +12,8 @@ import socket
 import subprocess
 import sys
 import tempfile
+import time
+import urllib.error
 import urllib.request
 
 BASE = 'https://panasms.github.io/updates/'
@@ -58,6 +60,28 @@ def select_release(data, channel, arch, now=None):
     return release, package
 
 
+def supported_os(info, arch):
+    distro = info.get('ID', '').strip('"')
+    version = info.get('VERSION_ID', '').strip('"')
+    return (distro in ('debian', 'raspbian') and version == '13' and arch in ('arm64', 'amd64')) or (distro == 'ubuntu' and version == '24.04' and arch == 'amd64')
+
+
+def wait_ready(opener, url, timeout=60):
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            with opener.open(url, timeout=5) as response:
+                health = json.load(response)
+                require(response.status == 200 and health.get('status') == 'ok' and health.get('product') == 'PaNasMs', 'Panel startup health check failed')
+                return
+        except urllib.error.URLError as error:
+            if isinstance(error, urllib.error.HTTPError) and error.code not in (502, 503, 504):
+                raise
+            if time.monotonic() >= deadline:
+                raise RuntimeError('Panel did not become ready within 60 seconds; inspect journalctl -u panasms-core -u panasms-agent') from error
+            time.sleep(1)
+
+
 def main():
     parser = argparse.ArgumentParser(description='Install PaNasMs and its dependencies on a fresh NAS')
     parser.add_argument('--channel', choices=['stable', 'testing'], default='stable')
@@ -68,12 +92,10 @@ def main():
     require(os.geteuid() == 0, 'Run the installer with sudo')
     require(1 <= args.port <= 65535, 'Port must be between 1 and 65535')
     release_info = dict(line.split('=', 1) for line in Path('/etc/os-release').read_text().splitlines() if '=' in line)
-    require(release_info.get('ID', '').strip('"') in ('debian', 'raspbian') and
-            release_info.get('VERSION_ID', '').strip('"') == '13',
-            'Use Debian 13 or Raspberry Pi OS based on Debian 13; no changes were made')
-    require(Path('/run/systemd/system').is_dir(), 'This installer requires a booted systemd system')
     arch = run('dpkg', '--print-architecture', capture=True).strip()
-    require(arch in ('arm64', 'amd64'), 'Only ARM64 and AMD64 packages are available')
+    require(supported_os(release_info, arch),
+            'Use Debian 13 / Raspberry Pi OS 13 (ARM64 or AMD64), or Ubuntu 24.04 LTS (AMD64); no changes were made')
+    require(Path('/run/systemd/system').is_dir(), 'This installer requires a booted systemd system')
     if arch == 'amd64':
         print('AMD64 is experimental: hardware acceptance has been performed on ARM64 only.', flush=True)
     installed = subprocess.run(['dpkg-query', '-W', '-f=${db:Status-Status}', 'panasms-prototype'], capture_output=True, text=True)
@@ -102,6 +124,9 @@ def main():
         release, package = select_release(json.loads(catalog.read_text()), args.channel, arch)
         require(subprocess.run(['dpkg','--compare-versions',release['version'],'ge','0.2.10~']).returncode == 0,
                 'This installer requires PaNasMs 0.2.10 or newer; wait for a compatible release in this channel')
+        if release_info.get('ID', '').strip('"') == 'ubuntu':
+            require(subprocess.run(['dpkg', '--compare-versions', release['version'], 'ge', '0.2.13~']).returncode == 0,
+                    'Ubuntu requires PaNasMs 0.2.13 or newer; wait for a compatible release in this channel')
         path = root/package['file']; raw = fetch(package['url'], package['size'])
         require(len(raw) == package['size'] and hashlib.sha256(raw).hexdigest() == package['sha256'], 'Package checksum mismatch')
         path.write_bytes(raw)
@@ -109,7 +134,7 @@ def main():
             require(run('dpkg-deb', '-f', str(path), field, capture=True).strip() == expected, 'Package identity mismatch: '+field)
         simulation = run('apt-get', '--simulate', '--no-remove', 'install', str(path), capture=True)
         require(not re.search(r'^Remv ', simulation, re.M), 'Installation would remove existing system packages')
-        run('apt-get', 'install', '--yes', '--no-remove', str(path))
+        run('apt-get', 'install', '--yes', '--no-remove', '--no-install-recommends', str(path))
     run('panasms-configure', '--port', str(args.port))
     # Explicit testing selection must also apply to subsequent update checks.
     Path('/etc/panasms/updates.json').write_text(json.dumps({'channel':args.channel,'mode':'notify','hour':3})+'\n')
@@ -121,9 +146,7 @@ def main():
     if args.https:
         context=ssl.create_default_context(cafile='/etc/panasms/tls.crt');context.check_hostname=False
         handlers.append(urllib.request.HTTPSHandler(context=context))
-    with urllib.request.build_opener(*handlers).open(f'{scheme}://127.0.0.1:{args.port}/api/v1/health', timeout=10) as response:
-        health=json.load(response)
-        require(response.status == 200 and health.get('status') == 'ok' and health.get('product') == 'PaNasMs', 'Panel startup health check failed')
+    wait_ready(urllib.request.build_opener(*handlers), f'{scheme}://127.0.0.1:{args.port}/api/v1/health')
     addresses = run('hostname', '-I', capture=True).split()
     address = next((a for a in addresses if ':' not in a), socket.gethostname())
     print(f'\nReady: {scheme}://{address}'+(f':{args.port}' if args.port != (443 if args.https else 80) else '')+'/')
