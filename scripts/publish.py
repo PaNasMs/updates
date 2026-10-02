@@ -118,9 +118,15 @@ def sign(path):
     command('gpg','--batch','--yes','--armor','--detach-sign',str(path))
 
 
+def render_installer():
+    bootstrap = "#!/bin/sh\nset -eu\ncommand -v python3 >/dev/null || { echo 'Python 3 is required. Install python3 using your OS package manager.' >&2; exit 1; }\npython3 - \"$@\" <<'PANASMS_INSTALL_PY'\n"
+    return bootstrap + (Path(__file__).parent/'install.py').read_text() + "\nPANASMS_INSTALL_PY\n"
+
+
 def build_site(state):
     site=Path('site');site.mkdir(exist_ok=True)
     shutil.copy2('panasms-updates.asc',site)
+    (site/'install.sh').write_text(render_installer())
     now=dt.datetime.now(dt.timezone.utc)
     for channel in ('stable','testing'):
         root=site/'dists'/channel

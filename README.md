@@ -11,6 +11,20 @@ The importer runs every 15 minutes (GitHub may delay scheduled workflows). It us
 [Project website](https://panasms.github.io/) ·
 [Installation and recovery lifecycle](https://github.com/PaNasMs/panasms/blob/main/documentation/system-updates.md)
 
+## One-command installation
+
+On a fresh Debian 13 / Raspberry Pi OS 64-bit system:
+
+```sh
+curl -fsSL https://panasms.github.io/updates/install.sh | sudo bash
+```
+
+Stable is the default; an empty stable channel stops installation. Opt into
+preview builds with `sudo bash -s -- --channel testing` instead. See the
+[installation guide](https://github.com/PaNasMs/panasms/blob/main/documentation/install.md)
+for ports, HTTPS, prerequisites and verification. Existing NAS installations use
+the panel updater, not this bootstrap script.
+
 ## Repository
 
 Base URL: https://panasms.github.io/updates/
