@@ -60,6 +60,18 @@ def select_release(data, channel, arch, now=None):
     return release, package
 
 
+def port_free(port):
+    # Connections still closing after a removed panel (an open browser tab) must not block
+    # reinstallation: probe the way the panel listens, with address reuse.
+    with socket.socket() as listener:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            listener.bind(('0.0.0.0', port))
+        except OSError:
+            return False
+    return True
+
+
 def supported_os(info, arch):
     distro = info.get('ID', '').strip('"')
     version = info.get('VERSION_ID', '').strip('"')
@@ -105,8 +117,7 @@ def main():
     require(shutil.disk_usage('/').free >= 2 * 1024**3, 'At least 2 GiB of free system disk space is required')
     admins = run('getent', 'group', 'sudo', capture=True).strip().split(':')[-1].split(',')
     require(any(admins), 'Create a regular Linux user in the sudo group before installation')
-    with socket.socket() as listener:
-        listener.bind(('0.0.0.0', args.port))
+    require(port_free(args.port), f'Port {args.port} is used by another service. Stop it or choose another port with --port.')
     print(f'Installing PaNasMs ({args.channel}, {arch}), web port {args.port}. Existing disks will not be formatted.', flush=True)
     run('apt-get', 'update')
     run('apt-get', 'install', '--yes', '--no-remove', 'ca-certificates', 'gnupg')

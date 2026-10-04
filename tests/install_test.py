@@ -34,6 +34,16 @@ class Installer(unittest.TestCase):
         self.assertIn('--channel',result.stdout)
         self.assertIn('--https',result.stdout)
 
+    def test_port_probe_ignores_closing_connections(self):
+        import socket
+        with socket.socket() as server:
+            server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            server.bind(('127.0.0.1', 0)); server.listen(); port = server.getsockname()[1]
+            self.assertFalse(i.port_free(port))
+            client = socket.create_connection(('127.0.0.1', port)); accepted = server.accept()[0]
+            accepted.close(); client.close()
+        # The listener is gone; its closed connection lingers in TIME-WAIT.
+        self.assertTrue(i.port_free(port))
     def test_supported_os_matrix(self):
         for distro,version,arch,expected in [('debian','13','amd64',True),('raspbian','13','arm64',True),('ubuntu','24.04','amd64',True),('ubuntu','24.04','arm64',False),('ubuntu','22.04','amd64',False),('other','13','amd64',False),('debian','12','amd64',False)]:
             with self.subTest(distro=distro,version=version,arch=arch):
