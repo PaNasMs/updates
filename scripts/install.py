@@ -27,7 +27,7 @@ def require(condition, message):
 
 def run(*args, capture=False):
     return subprocess.run(args, check=True, text=True, stdout=subprocess.PIPE if capture else None,
-                          env={**os.environ, 'DEBIAN_FRONTEND': 'noninteractive', 'LC_ALL': 'C'}).stdout
+                          env={**os.environ, 'DEBIAN_FRONTEND': 'noninteractive', 'LC_ALL': 'C', 'PANASMS_INSTALLER': '1'}).stdout
 
 
 def fetch(url, limit):
