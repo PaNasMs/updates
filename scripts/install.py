@@ -54,10 +54,33 @@ def select_release(data, channel, arch, now=None):
     packages = [p for p in release['packages'].get(arch, []) if p['name'] == 'panasms-prototype']
     require(len(packages) == 1, f'No unique core package for {arch}')
     package = packages[0]
+    validate_package(package)
+    return release, package
+
+
+def validate_package(package):
     require(re.fullmatch(r'[A-Za-z0-9_.~+-]+\.deb', package['file']) and
             re.fullmatch(r'[a-f0-9]{64}', package['sha256']) and type(package['size']) is int
             and 0 < package['size'] <= 256 * 1024**2, 'Invalid package metadata')
-    return release, package
+
+
+def needs_cooling(arch, root=Path('/')):
+    if arch != 'arm64':
+        return False
+    model = root/'proc/device-tree/model'
+    return model.exists() and 'Raspberry Pi 5' in model.read_text()
+
+
+def installation_packages(release, core, arch, cooling):
+    packages = [core]
+    if cooling:
+        candidates = [p for p in release['packages'].get(arch, []) if p['name'] == 'panasms-cooling']
+        require(len(candidates) == 1, 'Release has no unique cooling package for this Raspberry Pi; wait for a complete release')
+        validate_package(candidates[0])
+        require(candidates[0].get('architecture') == arch,
+                'This Raspberry Pi needs a native cooling package with portable Armbian dependencies; select a newer release')
+        packages += candidates
+    return packages
 
 
 def port_free(port):
@@ -138,14 +161,20 @@ def main():
         if release_info.get('ID', '').strip('"') == 'ubuntu':
             require(subprocess.run(['dpkg', '--compare-versions', release['version'], 'ge', '0.2.13~']).returncode == 0,
                     'Ubuntu requires PaNasMs 0.2.13 or newer; wait for a compatible release in this channel')
-        path = root/package['file']; raw = fetch(package['url'], package['size'])
-        require(len(raw) == package['size'] and hashlib.sha256(raw).hexdigest() == package['sha256'], 'Package checksum mismatch')
-        path.write_bytes(raw)
-        for field, expected in [('Package', 'panasms-prototype'), ('Version', release['version']), ('Architecture', arch)]:
-            require(run('dpkg-deb', '-f', str(path), field, capture=True).strip() == expected, 'Package identity mismatch: '+field)
-        simulation = run('apt-get', '--simulate', '--no-remove', 'install', str(path), capture=True)
+        cooling = needs_cooling(arch)
+        paths = []
+        for package in installation_packages(release, package, arch, cooling):
+            path = root/package['file']; raw = fetch(package['url'], package['size'])
+            require(len(raw) == package['size'] and hashlib.sha256(raw).hexdigest() == package['sha256'], 'Package checksum mismatch')
+            path.write_bytes(raw)
+            for field, expected in [('Package', package['name']), ('Version', release['version']), ('Architecture', arch)]:
+                require(run('dpkg-deb', '-f', str(path), field, capture=True).strip() == expected, 'Package identity mismatch: '+field)
+            paths.append(str(path))
+        simulation = run('apt-get', '--simulate', '--no-remove', '--no-install-recommends', 'install', *paths, capture=True)
         require(not re.search(r'^Remv ', simulation, re.M), 'Installation would remove existing system packages')
-        run('apt-get', 'install', '--yes', '--no-remove', '--no-install-recommends', str(path))
+        run('apt-get', 'install', '--yes', '--no-remove', '--no-install-recommends', *paths)
+        if cooling:
+            run('systemctl', 'is-active', '--quiet', 'panasms-cooling')
     run('panasms-configure', '--port', str(args.port))
     # Explicit testing selection must also apply to subsequent update checks.
     Path('/etc/panasms/updates.json').write_text(json.dumps({'channel':args.channel,'mode':'notify','hour':3})+'\n')

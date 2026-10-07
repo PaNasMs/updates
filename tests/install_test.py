@@ -67,3 +67,26 @@ class Installer(unittest.TestCase):
         response=io.BytesIO(b'{"product":"Other","status":"ok"}');response.status=200
         opener.open.side_effect=None;opener.open.return_value=response
         with self.assertRaisesRegex(RuntimeError,'health check failed'):i.wait_ready(opener,'http://localhost')
+
+    def test_pi5_requires_signed_native_cooling_package(self):
+        release, core = i.select_release(self.catalog(), 'stable', 'arm64')
+        self.assertEqual(i.installation_packages(release, core, 'arm64', False), [core])
+        with self.assertRaises(RuntimeError): i.installation_packages(release, core, 'arm64', True)
+        cooling = {**core, 'name':'panasms-cooling', 'file':'cooling.deb', 'architecture':'arm64'}
+        release['packages']['arm64'].append(cooling)
+        self.assertEqual(i.installation_packages(release, core, 'arm64', True), [core, cooling])
+        cooling['architecture']='all'
+        with self.assertRaises(RuntimeError): i.installation_packages(release, core, 'arm64', True)
+        cooling['architecture']='arm64'; cooling['file']='../cooling.deb'
+        with self.assertRaises(RuntimeError): i.installation_packages(release, core, 'arm64', True)
+
+    def test_hardware_detection_does_not_enable_unrelated_gpio(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder); model=root/'proc/device-tree/model';model.parent.mkdir(parents=True)
+            self.assertFalse(i.needs_cooling('arm64',root))
+            model.write_text('Raspberry Pi 5 Model B Rev 1.0\0')
+            self.assertTrue(i.needs_cooling('arm64',root))
+            self.assertFalse(i.needs_cooling('amd64',root))
+            model.write_text('Generic ARM SBC')
+            self.assertFalse(i.needs_cooling('arm64',root))
