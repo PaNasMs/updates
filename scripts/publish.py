@@ -95,7 +95,7 @@ def import_run(repo, run, state):
             published_file=file.replace('~','.')
             published=folder/published_file
             if published != path:shutil.copy2(path,published)
-            packages[arch].append({**item,'file':published_file,'name':name,'version':version,'size':path.stat().st_size,'url':f'https://github.com/{REPO}/releases/download/{tag}/{published_file}'})
+            packages[arch].append({**item,'file':published_file,'name':name,'architecture':package_arch,'version':version,'size':path.stat().st_size,'url':f'https://github.com/{REPO}/releases/download/{tag}/{published_file}'})
             uploads.append(str(published))
         if not any(p['name']=='panasms-prototype' for p in packages[arch]):raise ValueError('Missing core package')
         manifest=folder/f'{arch}-build-manifest.json'
