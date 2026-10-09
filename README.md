@@ -1,46 +1,107 @@
 # PaNasMs system updates
 
-Signed APT channels for Debian 13 / Raspberry Pi OS 13 (ARM64 and AMD64), and Ubuntu 24.04 LTS (AMD64, PaNasMs 0.2.13 or newer).
-
-- `testing`: successful pushes to `main` in PaNasMs/panasms, backend or frontend.
-- `stable`: successful `vMAJOR.MINOR.PATCH` tags in PaNasMs/panasms, with component commits pinned in `release-lock.json`.
-- Pull requests, feature branches, unsuccessful or incomplete builds are never published.
-
-The importer runs every 15 minutes (GitHub may delay scheduled workflows). It uses read access to public build artifacts, avoiding cross-repository write credentials. Publication is serialized and older versions cannot replace newer versions. Releases retain immutable packages; Pages carries the two latest versions per channel. Release signatures and channel manifests expire after seven days and are refreshed by the publisher.
+This repository publishes the signed APT channels and the one-command installer for
+[PaNasMs](https://github.com/PaNasMs/panasms), a browser panel for a Linux NAS. A scheduled
+GitHub Actions workflow imports verified core builds, signs the channel metadata and deploys it
+to GitHub Pages at https://panasms.github.io/updates/. The first stable release is 0.2.15.
 
 [Project website](https://panasms.github.io/) ·
+[Installation guide](https://panasms.github.io/docs/setup/install/) ·
 [Installation and recovery lifecycle](https://github.com/PaNasMs/panasms/blob/main/documentation/system-updates.md)
 
-## One-command installation
+## Install
 
-On a fresh supported system with a password-enabled sudo user:
+On a fresh supported system that has a regular Linux user with a password in the `sudo` group:
 
 ```sh
 curl -fsSL https://panasms.github.io/updates/install.sh | sudo bash
 ```
 
-Stable is the default; an empty stable channel stops installation. Opt into
-preview builds with `sudo bash -s -- --channel testing` instead. See the
-[installation guide](https://github.com/PaNasMs/panasms/blob/main/documentation/install.md)
-for ports, HTTPS, prerequisites and verification. Existing NAS installations use
-the panel updater, not this bootstrap script.
+The installer uses the stable channel and stops if that channel is empty. For preview builds, run
+`sudo bash -s -- --channel testing` instead of `sudo bash`. Other options are `--port` (default 80,
+or 443 with `--https`) and `--https`, which enables HTTPS with a locally generated certificate.
 
-## Repository
+The installer accepts Debian 13 and Raspberry Pi OS 13 on ARM64 or AMD64, and Ubuntu 24.04 LTS on
+AMD64. Armbian 26.8 (Debian 13) has been tested on a Raspberry Pi 5. AMD64 has been tested only in
+virtual machines, and the installer prints a warning about it. Before it changes anything, it checks for a booted systemd
+system, at least 2 GiB free on `/`, a free web port, a clean `dpkg` state and no existing PaNasMs
+installation. It verifies the signing key fingerprint, the channel catalog signature and every
+package checksum, and stops if APT would remove an existing package. On a Raspberry Pi 5 it also
+installs the `panasms-cooling` package from the same release. It does not format disks.
 
-Base URL: https://panasms.github.io/updates/
+An existing installation updates from Settings > System updates in the panel. The installer refuses
+to replace a running NAS.
 
-Download `panasms-updates.asc` and verify its fingerprint through a trusted source before installation:
+## Channels
+
+- `stable` comes from successful `vMAJOR.MINOR.PATCH` tag builds in PaNasMs/panasms. The tag pins
+  component commits in `release-lock.json`.
+- `testing` comes from successful pushes to `main` in PaNasMs/panasms, PaNasMs/backend or
+  PaNasMs/frontend.
+
+Pull requests, feature branches and failed or incomplete builds never reach a channel.
+
+## Manual APT setup
+
+Download [`panasms-updates.asc`](panasms-updates.asc) and check its fingerprint against a trusted
+source:
 
 `495D 91EE 558D A6CA 516E A434 BC48 F33E C04D FC99`
 
-For manual APT configuration, install this key in `/etc/apt/keyrings/panasms-updates.asc`, then use a deb822 source with `Types: deb`, `URIs: https://panasms.github.io/updates/`, `Suites: stable` (or `testing`), `Components: main`, and `Signed-By: /etc/apt/keyrings/panasms-updates.asc`.
+Save the key as `/etc/apt/keyrings/panasms-updates.asc` and add a deb822 source:
 
-The panel verifies the signed channel manifest and installs downloaded local packages through APT; it does not enable a global APT source automatically. Selecting a channel does not itself install an update or authorize a downgrade. System dependencies still come from the distribution repositories.
+```
+Types: deb
+URIs: https://panasms.github.io/updates/
+Suites: stable
+Components: main
+Signed-By: /etc/apt/keyrings/panasms-updates.asc
+```
 
-## Security and operations
+Use `Suites: testing` for preview builds. System dependencies still come from the distribution
+repositories.
 
-Only this repository holds the `UPDATE_SIGNING_KEY` Actions secret. The public key is also shipped in the NAS package. Key rotation requires an explicit trust update. Checksums alone are not signatures. Published version bytes must not change.
+The panel does not add a global APT source. It verifies the signed channel manifest, downloads the
+packages and installs them as local files through APT. Selecting a channel does not install an
+update or authorize a downgrade.
 
-The publisher checks both architecture builds, their component identities, package hashes and Debian metadata. Third-party module sources cannot publish system updates. No NAS credentials are held in GitHub. The publisher never connects to a NAS.
+## How publishing works
 
-License: PolyForm Noncommercial 1.0.0; see LICENSE.
+`.github/workflows/publish.yml` runs at minutes 4, 19, 34 and 49 of every hour (GitHub may delay
+scheduled runs) and on manual dispatch. It runs `scripts/publish.py`, which:
+
+- reads successful `build.yml` runs and their artifacts from PaNasMs/panasms, backend and frontend
+  with this workflow's own token, so the build repositories need no write access here;
+- requires both the ARM64 and AMD64 artifacts and checks their channel, version, source commits,
+  run URL, SHA-256 hashes and Debian `Package`, `Version` and `Architecture` fields;
+- accepts only the `panasms-prototype` (core) and `panasms-cooling` packages;
+- skips any version that is not newer than the current one in the channel;
+- creates a GitHub release per version and fails if an existing release would change;
+- keeps the two latest versions per channel on Pages and records them in `state.json`;
+- signs `Release`, `InRelease` and `channels/<channel>.json`, which expire after seven days, so
+  each run re-signs them.
+
+`scripts/install.py` is the installer source. The publisher wraps it in a shell bootstrap and
+serves it as `install.sh`.
+
+Run the tests locally with:
+
+```sh
+python3 -m unittest discover -s tests -p '*_test.py' -v
+```
+
+Pull requests run the same tests and do not publish.
+
+## Security
+
+Only this repository holds the `UPDATE_SIGNING_KEY` Actions secret. The publisher refuses to sign
+if that key does not match `panasms-updates.asc`. The core package ships the same public key, so
+rotating the key requires an explicit trust update on every NAS. Checksums alone are not
+signatures, and published version bytes never change.
+
+Third-party module repositories cannot publish system updates. GitHub holds no NAS credentials,
+and the publisher never connects to a NAS.
+
+## License
+
+PolyForm Noncommercial 1.0.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
