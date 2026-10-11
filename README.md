@@ -104,4 +104,4 @@ and the publisher never connects to a NAS.
 
 ## License
 
-PaNasMs Source-Available License 1.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Sustainable Use License 1.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
