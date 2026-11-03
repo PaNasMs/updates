@@ -58,6 +58,14 @@ def validate(meta, repo, run, arch):
     if expected == 'testing' and not re.fullmatch(r'\d+\.\d+\.\d+~dev\.\d{14}\.\d+\.\d+',meta['version']):raise ValueError('Testing version mismatch')
 
 
+def publication_order(candidate):
+    run = candidate[1]
+    branch = run['head_branch']
+    if branch.startswith('v'):
+        return 0, tuple(map(int, branch[1:].split('.')))
+    return 1, -dt.datetime.fromisoformat(run['created_at']).timestamp()
+
+
 def retained_releases(channel, entry, entries):
     newest = [entry, *entries][:2]
     if channel == 'stable' and newer(entry['version'], SHARING_BRIDGE):
@@ -195,7 +203,7 @@ def main():
         if not any(run['head_branch'] == bridge_tag for _, run in candidates):
             runs = api(f'repos/PaNasMs/panasms/actions/workflows/build.yml/runs?branch={bridge_tag}&event=push&status=success&per_page=1')
             candidates.extend(('panasms', run) for run in runs['workflow_runs'] if eligible('panasms', run) and run['head_branch'] == bridge_tag)
-    for repo,run in sorted(candidates,key=lambda x:(x[1]['head_branch'] == bridge_tag, x[1]['created_at']),reverse=True):
+    for repo,run in sorted(candidates,key=publication_order):
         known=[r for rows in state.values() for r in rows]
         if any(r['run'].endswith('/'+str(run['id'])) for r in known):continue
         if not run['head_branch'].startswith('v') and state.get('testing') and run['created_at'] <= state['testing'][0]['createdAt']:continue
