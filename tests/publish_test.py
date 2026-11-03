@@ -29,5 +29,4 @@ class Publication(unittest.TestCase):
             releases = p.retained_releases('stable', {'version': version}, releases)
             self.assertIn(bridge, releases)
         self.assertEqual([row['version'] for row in releases], ['0.2.38', '0.2.37', '0.2.35'])
-        with self.assertRaisesRegex(ValueError, 'compatibility release'):
-            p.retained_releases('stable', {'version': '0.2.36'}, [old])
+        self.assertIsNone(p.retained_releases('stable', {'version': '0.2.36'}, [old]))

@@ -63,7 +63,7 @@ def retained_releases(channel, entry, entries):
     if channel == 'stable' and newer(entry['version'], SHARING_BRIDGE):
         bridge = next((row for row in entries if row['version'] == SHARING_BRIDGE), None)
         if bridge is None:
-            raise ValueError('Publish the sharing compatibility release before newer Stable releases')
+            return None
         if bridge not in newest:
             newest.append(bridge)
     return newest
@@ -114,6 +114,9 @@ def import_run(repo, run, state):
         manifest.write_text(json.dumps(manifests[arch],indent=2)+'\n');uploads.append(str(manifest))
     entry={'version':version,'channel':channel,'createdAt':first['createdAt'],'run':first['run'],'sources':first['sources'],'tag':tag,'packages':packages,'rollbackCompatible':policy['rollbackCompatible'],'requiresReboot':policy['requiresReboot']}
     retained = retained_releases(channel, entry, entries)
+    if retained is None:
+        print(f"Deferring Stable {version} until the sharing compatibility release is available")
+        return
     probe=subprocess.run(['gh','release','view',tag,'--repo',REPO],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     if probe.returncode:
         command('gh','release','create',tag,*uploads,'--repo',REPO,'--title',f'PaNasMs {version}','--notes',f"Verified ARM64 and AMD64 packages. Source build: {first['run']}",*(['--prerelease'] if channel=='testing' else []))
@@ -187,7 +190,12 @@ def main():
     for repo in ('panasms','backend','frontend'):
         for run in api(f'repos/PaNasMs/{repo}/actions/workflows/build.yml/runs?event=push&status=success&per_page=10')['workflow_runs']:
             if eligible(repo,run):candidates.append((repo,run))
-    for repo,run in sorted(candidates,key=lambda x:x[1]['created_at'],reverse=True):
+    bridge_tag = 'v' + SHARING_BRIDGE
+    if not any(row['version'] == SHARING_BRIDGE for row in state.get('stable', [])):
+        if not any(run['head_branch'] == bridge_tag for _, run in candidates):
+            runs = api(f'repos/PaNasMs/panasms/actions/workflows/build.yml/runs?branch={bridge_tag}&event=push&status=success&per_page=1')
+            candidates.extend(('panasms', run) for run in runs['workflow_runs'] if eligible('panasms', run) and run['head_branch'] == bridge_tag)
+    for repo,run in sorted(candidates,key=lambda x:(x[1]['head_branch'] == bridge_tag, x[1]['created_at']),reverse=True):
         known=[r for rows in state.values() for r in rows]
         if any(r['run'].endswith('/'+str(run['id'])) for r in known):continue
         if not run['head_branch'].startswith('v') and state.get('testing') and run['created_at'] <= state['testing'][0]['createdAt']:continue
