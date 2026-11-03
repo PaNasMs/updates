@@ -41,6 +41,13 @@ to replace a running NAS.
 
 Pull requests, feature branches and failed or incomplete builds never reach a channel.
 
+Stable installations through 0.2.34 receive the signed 0.2.35 sharing compatibility
+update in Settings, including systems that have skipped releases. After installing
+it, check for updates again to receive the current Stable version. The installer
+and updated panels use the signed `channels/current/stable.json` catalog.
+When manually upgrading an older installation with APT, install the 0.2.35
+PaNasMs packages under maintenance before installing the current version.
+
 ## Manual APT setup
 
 Download [`panasms-updates.asc`](panasms-updates.asc) and check its fingerprint against a trusted
@@ -77,7 +84,7 @@ scheduled runs) and on manual dispatch. It runs `scripts/publish.py`, which:
 - accepts only the `panasms-prototype` (core) and `panasms-cooling` packages;
 - skips any version that is not newer than the current one in the channel;
 - creates a GitHub release per version and fails if an existing release would change;
-- keeps the two latest versions per channel on Pages and records them in `state.json`;
+- keeps the two latest versions per channel on Pages, plus the 0.2.35 compatibility package for Stable, and records them in `state.json`;
 - signs `Release`, `InRelease` and `channels/<channel>.json`, which expire after seven days, so
   each run re-signs them.
 

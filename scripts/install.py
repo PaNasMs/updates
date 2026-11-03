@@ -152,8 +152,9 @@ def main():
         fingerprints = [line.split(':')[9] for line in shown.splitlines() if line.startswith('fpr:')]
         require(sum(line.startswith('pub:') for line in shown.splitlines()) == 1 and fingerprints and fingerprints[0] == FINGERPRINT, 'Update signing key fingerprint mismatch')
         run('gpg', '--batch', '--homedir', str(root/'gnupg'), '--output', str(root/'key.gpg'), '--dearmor', str(key))
-        catalog = root/'catalog.json'; catalog.write_bytes(fetch(BASE+f'channels/{args.channel}.json', 2*1024**2))
-        signature = root/'catalog.asc'; signature.write_bytes(fetch(BASE+f'channels/{args.channel}.json.asc', 16384))
+        feed = 'current/stable' if args.channel == 'stable' else args.channel
+        catalog = root/'catalog.json'; catalog.write_bytes(fetch(BASE+f'channels/{feed}.json', 2*1024**2))
+        signature = root/'catalog.asc'; signature.write_bytes(fetch(BASE+f'channels/{feed}.json.asc', 16384))
         run('gpgv', '--homedir', str(root/'gnupg'), '--keyring', str(root/'key.gpg'), str(signature), str(catalog))
         release, package = select_release(json.loads(catalog.read_text()), args.channel, arch)
         require(subprocess.run(['dpkg','--compare-versions',release['version'],'ge','0.2.10~']).returncode == 0,

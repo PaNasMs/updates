@@ -15,6 +15,7 @@ import zipfile
 
 REPO = 'PaNasMs/updates'
 BASE = 'https://panasms.github.io/updates/'
+SHARING_BRIDGE = '0.2.35'
 ALLOWED = {'panasms-prototype', 'panasms-cooling'}
 
 
@@ -55,6 +56,25 @@ def validate(meta, repo, run, arch):
     if meta['run'] != f"https://github.com/PaNasMs/{repo}/actions/runs/{run['id']}":raise ValueError('Run mismatch')
     if expected == 'stable' and meta['version'] != run['head_branch'][1:]:raise ValueError('Tag mismatch')
     if expected == 'testing' and not re.fullmatch(r'\d+\.\d+\.\d+~dev\.\d{14}\.\d+\.\d+',meta['version']):raise ValueError('Testing version mismatch')
+
+
+def publication_order(candidate):
+    run = candidate[1]
+    branch = run['head_branch']
+    if branch.startswith('v'):
+        return 0, tuple(map(int, branch[1:].split('.')))
+    return 1, -dt.datetime.fromisoformat(run['created_at']).timestamp()
+
+
+def retained_releases(channel, entry, entries):
+    newest = [entry, *entries][:2]
+    if channel == 'stable' and newer(entry['version'], SHARING_BRIDGE):
+        bridge = next((row for row in entries if row['version'] == SHARING_BRIDGE), None)
+        if bridge is None:
+            return None
+        if bridge not in newest:
+            newest.append(bridge)
+    return newest
 
 
 def import_run(repo, run, state):
@@ -101,6 +121,10 @@ def import_run(repo, run, state):
         manifest=folder/f'{arch}-build-manifest.json'
         manifest.write_text(json.dumps(manifests[arch],indent=2)+'\n');uploads.append(str(manifest))
     entry={'version':version,'channel':channel,'createdAt':first['createdAt'],'run':first['run'],'sources':first['sources'],'tag':tag,'packages':packages,'rollbackCompatible':policy['rollbackCompatible'],'requiresReboot':policy['requiresReboot']}
+    retained = retained_releases(channel, entry, entries)
+    if retained is None:
+        print(f"Deferring Stable {version} until the sharing compatibility release is available")
+        return
     probe=subprocess.run(['gh','release','view',tag,'--repo',REPO],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     if probe.returncode:
         command('gh','release','create',tag,*uploads,'--repo',REPO,'--title',f'PaNasMs {version}','--notes',f"Verified ARM64 and AMD64 packages. Source build: {first['run']}",*(['--prerelease'] if channel=='testing' else []))
@@ -111,7 +135,7 @@ def import_run(repo, run, state):
             for path in uploads:
                 if Path(path).read_bytes() != (check/Path(path).name).read_bytes():raise ValueError('Published release is immutable')
         finally:shutil.rmtree(check)
-    state[channel]=[entry,*entries][:2]
+    state[channel] = retained
 
 
 def sign(path):
@@ -121,6 +145,14 @@ def sign(path):
 def render_installer():
     bootstrap = "#!/bin/sh\nset -eu\ncommand -v python3 >/dev/null || { echo 'Python 3 is required. Install python3 using your OS package manager.' >&2; exit 1; }\npython3 - \"$@\" <<'PANASMS_INSTALL_PY'\n"
     return bootstrap + (Path(__file__).parent/'install.py').read_text() + "\nPANASMS_INSTALL_PY\n"
+
+
+def write_feed(site, path, channel, releases, now):
+    feed = site / 'channels' / (path + '.json')
+    feed.parent.mkdir(parents=True, exist_ok=True)
+    feed.write_text(json.dumps({'schemaVersion': 1, 'channel': channel, 'generatedAt': now.isoformat(),
+                               'expiresAt': (now + dt.timedelta(days=7)).isoformat(), 'releases': releases}, indent=2) + '\n')
+    sign(feed)
 
 
 def build_site(state):
@@ -149,9 +181,13 @@ def build_site(state):
         (root/'Release').write_text(f'Origin: PaNasMs\nLabel: PaNasMs\nSuite: {channel}\nCodename: {channel}\nArchitectures: arm64 amd64\nComponents: main\nDate: {email.utils.format_datetime(now)}\nValid-Until: {email.utils.format_datetime(now+dt.timedelta(days=7))}\n'+release)
         command('gpg','--batch','--yes','--clearsign','--output',str(root/'InRelease'),str(root/'Release'))
         command('gpg','--batch','--yes','--armor','--detach-sign','--output',str(root/'Release.gpg'),str(root/'Release'))
-        feed=site/'channels'/f'{channel}.json';feed.parent.mkdir(exist_ok=True)
-        feed.write_text(json.dumps({'schemaVersion':1,'channel':channel,'generatedAt':now.isoformat(),'expiresAt':(now+dt.timedelta(days=7)).isoformat(),'releases':state.get(channel,[])},indent=2)+'\n')
-        sign(feed)
+        releases = state.get(channel, [])
+        if channel == 'stable':
+            write_feed(site, 'current/stable', channel, releases, now)
+            bridge = next((row for row in releases if row['version'] == SHARING_BRIDGE), None)
+            if bridge:
+                releases = [bridge]
+        write_feed(site, channel, channel, releases, now)
     (site/'index.html').write_text('<!doctype html><html lang="en"><title>PaNasMs updates</title><h1>PaNasMs system updates</h1><p>Signed stable and testing APT repositories. See <a href="https://github.com/PaNasMs/updates">setup instructions</a>.</p></html>')
 
 
@@ -162,7 +198,12 @@ def main():
     for repo in ('panasms','backend','frontend'):
         for run in api(f'repos/PaNasMs/{repo}/actions/workflows/build.yml/runs?event=push&status=success&per_page=10')['workflow_runs']:
             if eligible(repo,run):candidates.append((repo,run))
-    for repo,run in sorted(candidates,key=lambda x:x[1]['created_at'],reverse=True):
+    bridge_tag = 'v' + SHARING_BRIDGE
+    if not any(row['version'] == SHARING_BRIDGE for row in state.get('stable', [])):
+        if not any(run['head_branch'] == bridge_tag for _, run in candidates):
+            runs = api(f'repos/PaNasMs/panasms/actions/workflows/build.yml/runs?branch={bridge_tag}&event=push&status=success&per_page=1')
+            candidates.extend(('panasms', run) for run in runs['workflow_runs'] if eligible('panasms', run) and run['head_branch'] == bridge_tag)
+    for repo,run in sorted(candidates,key=publication_order):
         known=[r for rows in state.values() for r in rows]
         if any(r['run'].endswith('/'+str(run['id'])) for r in known):continue
         if not run['head_branch'].startswith('v') and state.get('testing') and run['created_at'] <= state['testing'][0]['createdAt']:continue
