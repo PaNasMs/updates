@@ -84,7 +84,7 @@ scheduled runs) and on manual dispatch. It runs `scripts/publish.py`, which:
 - accepts only the `panasms-prototype` (core) and `panasms-cooling` packages;
 - skips any version that is not newer than the current one in the channel;
 - creates a GitHub release per version and fails if an existing release would change;
-- keeps the two latest versions per channel on Pages and records them in `state.json`;
+- keeps the two latest versions per channel on Pages, plus the 0.2.35 compatibility package for Stable, and records them in `state.json`;
 - signs `Release`, `InRelease` and `channels/<channel>.json`, which expire after seven days, so
   each run re-signs them.
 
