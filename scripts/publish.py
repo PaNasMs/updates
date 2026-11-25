@@ -111,12 +111,16 @@ def import_run(repo, run, state):
     for arch in ('arm64','amd64'):
         name = f"panasms-debian13-{arch}-{run['id']}-{run['run_attempt']}"
         matches = [x for x in artifacts if x['name']==name and not x['expired']]
-        if len(matches)!=1:return
+        if len(matches)!=1:
+            print(f"Skipping {describe(repo, run)}: expected one unexpired artifact {name}, found {len(matches)}")
+            return
         folder = Path('downloads')/name
         folder.mkdir(parents=True,exist_ok=True)
         extract(command('gh','api',f"repos/PaNasMs/{repo}/actions/artifacts/{matches[0]['id']}/zip"),folder)
         meta = json.loads((folder/'build-manifest.json').read_text())
-        if meta.get('channel') not in ('stable','testing'):return
+        if meta.get('channel') not in ('stable','testing'):
+            print(f"Skipping {describe(repo, run)}: {arch} manifest channel is {meta.get('channel')}")
+            return
         validate(meta,repo,run,arch)
         manifests[arch], folders[arch] = meta, folder
     first = manifests['arm64']
@@ -126,7 +130,9 @@ def import_run(repo, run, state):
     if policy != manifests['amd64'].get('updatePolicy', {'rollbackCompatible':False,'requiresReboot':False}):raise ValueError('Update policy mismatch')
     channel, version = first['channel'], first['version']
     entries = state.get(channel,[])
-    if entries and not newer(version,entries[0]['version']):return
+    if entries and not newer(version,entries[0]['version']):
+        print(f"Skipping {describe(repo, run)}: version {version} is not newer than {channel} {entries[0]['version']}")
+        return
     tag = 'v'+version if channel=='stable' else f"testing-{run['id']}-{run['run_attempt']}"
     packages, uploads = {}, []
     for arch,folder in folders.items():
@@ -151,7 +157,7 @@ def import_run(repo, run, state):
     entry={'version':version,'channel':channel,'createdAt':first['createdAt'],'run':first['run'],'sources':first['sources'],'tag':tag,'packages':packages,'rollbackCompatible':policy['rollbackCompatible'],'requiresReboot':policy['requiresReboot']}
     retained = retained_releases(channel, entry, entries)
     if retained is None:
-        print(f"Deferring Stable {version} until the sharing compatibility release is available")
+        print(f"Deferring Stable {version} from {describe(repo, run)} until the sharing compatibility release is available")
         return
     probe=subprocess.run(['gh','release','view',tag,'--repo',REPO],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     if probe.returncode:
@@ -164,6 +170,7 @@ def import_run(repo, run, state):
                 if Path(path).read_bytes() != (check/Path(path).name).read_bytes():raise ValueError('Published release is immutable')
         finally:shutil.rmtree(check)
     state[channel] = retained
+    print(f"Imported {describe(repo, run)} as {channel} {version}")
 
 
 def sign(path):
