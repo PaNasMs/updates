@@ -39,6 +39,34 @@ def eligible(repo, run):
     return branch == 'main' or (repo == 'panasms' and bool(re.fullmatch(r'v\d+\.\d+\.\d+',branch)))
 
 
+def describe(repo, run):
+    return f"{repo} build {run.get('id')} ({run.get('head_branch')} {str(run.get('head_sha') or '')[:7]}, {run.get('status')}/{run.get('conclusion')})"
+
+
+def skip_reason(repo, run):
+    if run.get('status') != 'completed':return f"not completed (status {run.get('status')})"
+    if run.get('conclusion') != 'success':return f"conclusion is {run.get('conclusion')}"
+    if not eligible(repo, run):return 'not a push build of main or a release tag'
+    return None
+
+
+def select_candidates(repo, runs):
+    # The status=success query filter can omit finished builds for a long time, so filter here.
+    selected = []
+    for run in runs:
+        reason = skip_reason(repo, run)
+        if reason:
+            print(f"Skipping {describe(repo, run)}: {reason}")
+        else:
+            print(f"Considering {describe(repo, run)}")
+            selected.append((repo, run))
+    return selected
+
+
+def list_candidates(repo):
+    return select_candidates(repo, api(f'repos/PaNasMs/{repo}/actions/workflows/build.yml/runs?event=push&per_page=10')['workflow_runs'])
+
+
 def extract(raw, folder):
     with zipfile.ZipFile(io.BytesIO(raw)) as archive:
         if sum(x.file_size for x in archive.infolist()) > 256*1024*1024:raise ValueError('Artifact too large')
@@ -196,8 +224,7 @@ def main():
     previous=json.dumps(state,sort_keys=True)
     candidates=[]
     for repo in ('panasms','backend','frontend'):
-        for run in api(f'repos/PaNasMs/{repo}/actions/workflows/build.yml/runs?event=push&status=success&per_page=10')['workflow_runs']:
-            if eligible(repo,run):candidates.append((repo,run))
+        candidates += list_candidates(repo)
     bridge_tag = 'v' + SHARING_BRIDGE
     if not any(row['version'] == SHARING_BRIDGE for row in state.get('stable', [])):
         if not any(run['head_branch'] == bridge_tag for _, run in candidates):
@@ -205,8 +232,11 @@ def main():
             candidates.extend(('panasms', run) for run in runs['workflow_runs'] if eligible('panasms', run) and run['head_branch'] == bridge_tag)
     for repo,run in sorted(candidates,key=publication_order):
         known=[r for rows in state.values() for r in rows]
-        if any(r['run'].endswith('/'+str(run['id'])) for r in known):continue
-        if not run['head_branch'].startswith('v') and state.get('testing') and run['created_at'] <= state['testing'][0]['createdAt']:continue
+        if any(r['run'].endswith('/'+str(run['id'])) for r in known):
+            print(f"Skipping {describe(repo, run)}: already published");continue
+        if not run['head_branch'].startswith('v') and state.get('testing') and run['created_at'] <= state['testing'][0]['createdAt']:
+            print(f"Skipping {describe(repo, run)}: not newer than the latest testing release");continue
+        print(f"Importing {describe(repo, run)}")
         import_run(repo,run,state)
     with tempfile.TemporaryDirectory() as home:
         os.environ['GNUPGHOME']=home
